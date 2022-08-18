@@ -1,26 +1,39 @@
 import time
 import requests
-# import ocrmypdf
 import subprocess
 from datetime import datetime
+import boto3
 
 
-# deskew logic and send the status to the backend api server
-def deskew_service(file_path: str):
+def deskew_service(file_path: str, file_name: str, s3_dir_name:str):
+    """ 
+    file_path: file to download from s3
+    file_name: <example>.pdf
+    s3_dir_name: path to upload the deskewed file
+    """
+
     try:
-        print("starting deskew service")
-        #time.sleep(10)
-        # print(10/0)
+        print("Downloading the file: " + file_name)
+        s3 = boto3.client('s3')
+        s3.download_file('pdf-editor-assets-001', file_path, file_name)
+        
         # start the deskew service
+        print("starting deskew service")
         start = time.time()
         print(datetime.now())
-        subprocess.run(["ocrmypdf", "--tesseract-timeout", "300", "1.pdf", "op.pdf", "--deskew"], shell=True, check=True)
-        # ocrmypdf.ocr("1.pdf", "op.pdf", deskew=True, progress_bar=True)
+        file_name = file_name.split('.pdf')[0]
+        deskewed_file_name = f"{file_name}_deskewed.pdf"
+        subprocess.run(["ocrmypdf", "--tesseract-timeout", "300", file_name, deskewed_file_name, "--deskew"], check=True)
         end = time.time()
         print(datetime.now())
         print(f"time taken: ", end - start)
         print("deskew completed successfully")
-        requests.post("http://localhost:8000/api/deskew_response/",data = {"success":f"Deskewed file: {file_path} successfully"})
+
+        # upload the deskewed file to s3
+        s3_file_path = f"{s3_dir_name}/{deskewed_file_name}"
+        object = s3.Object('pdf-editor-assets-001', s3_file_path).put(Body=deskewed_file_name)
+            
+        requests.post("http://localhost:8000/api/deskew_response/",data = {"success":f"Deskewed file: {file_name} successfully"})
 
     except Exception as e: 
         print(e)
