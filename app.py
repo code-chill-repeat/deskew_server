@@ -17,9 +17,9 @@ def home():
 @app.route("/deskew", methods=["POST"])
 def deskew_api():
     data = request.form
-    if "file_path" not in data:
+    if "file_path" not in data or "file_name" not in data or "s3_dir_name" not in data:
         return Response(status=400)
-    q.enqueue(deskew_service, data["file_path"])
+    q.enqueue(deskew_service, args=(data["file_path"], data["file_name"], data["s3_dir_name"]), job_timeout=1500)
     return Response(status=200)
 
 if __name__ == "__main__":

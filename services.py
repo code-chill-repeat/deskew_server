@@ -3,6 +3,13 @@ import requests
 import subprocess
 from datetime import datetime
 import boto3
+from dotenv import load_dotenv
+from botocore.client import Config
+import os
+
+
+load_dotenv()
+s3 = boto3.resource('s3', config=Config(signature_version='s3v4'),aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'), aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'))
 
 
 def deskew_service(file_path: str, file_name: str, s3_dir_name:str):
@@ -13,9 +20,12 @@ def deskew_service(file_path: str, file_name: str, s3_dir_name:str):
     """
 
     try:
+        print(os.environ.get('AWS_ACCESS_KEY_ID'))
+        print(f"file_path: %s" % file_path)
+        print(f"file_name: %s" % file_name)
+        print(f"s3_dir_name: %s" % s3_dir_name)
         print("Downloading the file: " + file_name)
-        s3 = boto3.client('s3')
-        s3.download_file('pdf-editor-assets-001', file_path, file_name)
+        s3.Bucket(os.getenv("AWS_STORAGE_BUCKET_NAME")).download_file(file_path, file_name)
         
         # start the deskew service
         print("starting deskew service")
@@ -23,7 +33,7 @@ def deskew_service(file_path: str, file_name: str, s3_dir_name:str):
         print(datetime.now())
         file_name = file_name.split('.pdf')[0]
         deskewed_file_name = f"{file_name}_deskewed.pdf"
-        subprocess.run(["ocrmypdf", "--tesseract-timeout", "300", file_name, deskewed_file_name, "--deskew"], check=True)
+        subprocess.run(["ocrmypdf", "--tesseract-timeout", "300", file_name+".pdf", deskewed_file_name, "--deskew"], check=True)
         end = time.time()
         print(datetime.now())
         print(f"time taken: ", end - start)
