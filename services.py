@@ -12,7 +12,7 @@ load_dotenv()
 s3 = boto3.resource('s3', config=Config(signature_version='s3v4'),aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'), aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'))
 
 
-def deskew_service(file_path: str, file_name: str, s3_dir_name:str):
+def deskew_service(file_path: str, file_name: str, s3_dir_name:str, project_id: int):
     """ 
     file_path: file to download from s3
     file_name: <example>.pdf
@@ -33,7 +33,7 @@ def deskew_service(file_path: str, file_name: str, s3_dir_name:str):
         print(datetime.now())
         file_name = file_name.split('.pdf')[0]
         deskewed_file_name = f"{file_name}_deskewed.pdf"
-        subprocess.run(["ocrmypdf", "--tesseract-timeout", "300", file_name+".pdf", deskewed_file_name, "--deskew"], check=True)
+        subprocess.run(["ocrmypdf", "--clean", "--rotate-pages-threshold", "0.1", "--tesseract-timeout", "300", file_name+".pdf", deskewed_file_name, "--deskew", "--force-ocr"], check=True)
         end = time.time()
         print(datetime.now())
         print(f"time taken: ", end - start)
@@ -41,10 +41,13 @@ def deskew_service(file_path: str, file_name: str, s3_dir_name:str):
 
         # upload the deskewed file to s3
         s3_file_path = f"{s3_dir_name}/{deskewed_file_name}"
-        object = s3.Object('pdf-editor-assets-001', s3_file_path).put(Body=deskewed_file_name)
+        with open(deskewed_file_name, "rb") as file:
+            object = s3.Object('pdf-editor-assets-001', s3_file_path).put(Body=file)
             
-        requests.post("http://localhost:8000/api/deskew_response/",data = {"success":f"Deskewed file: {file_name} successfully"})
-
+        requests.post("https://pdf-backend.de/api/deskew_response/",data = {"description": f"Deskewed file: {file_name} successfully", "project_id": project_id, "file_name": file_name+".pdf"})
+        os.remove(file_name+".pdf")
+        os.remove(deskewed_file_name)
     except Exception as e: 
         print(e)
-        requests.post("http://localhost:8000/api/deskew_response/",data = {"error":e})
+        requests.post("https://pdf-backend.de/api/deskew_response/",data = {"description":e, "project_id": project_id})
+        os.remove(deskewed_file_name)
